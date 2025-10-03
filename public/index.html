@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geladeira Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
+    <style> body { font-family: 'Inter', sans-serif; } </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div id="main-container" class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+        
+        <div id="product-list">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Bebidas Geladas</h1>
+            <p class="text-gray-500 mb-6">Escolha sua bebida para gerar o QR Code de pagamento.</p>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition">
+                    <div><h2 class="text-lg font-semibold">Coca-Cola Lata</h2><p class="text-gray-600 font-bold">R$ 5,00</p></div>
+                    <button onclick="selectProduct('Coca-Cola Lata', 500)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600">Selecionar</button>
+                </div>
+                <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition">
+                    <div><h2 class="text-lg font-semibold">Água Mineral 500ml</h2><p class="text-gray-600 font-bold">R$ 3,00</p></div>
+                    <button onclick="selectProduct('Agua Mineral 500ml', 300)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600">Selecionar</button>
+                </div>
+                <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition">
+                    <div><h2 class="text-lg font-semibold">Cerveja Lata</h2><p class="text-gray-600 font-bold">R$ 6,00</p></div>
+                    <button onclick="selectProduct('Cerveja Lata', 600)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600">Selecionar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="payment-screen" class="hidden text-center">
+            <div id="loading" class="hidden"><p class="animate-pulse">A gerar link de pagamento...</p></div>
+            <div id="payment-content">
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">Pague para Liberar</h1>
+                <p id="payment-product" class="text-gray-600 mb-4"></p>
+                <div id="qrcode" class="flex justify-center my-4"></div>
+                <p class="text-sm text-gray-500 mb-4">Aponte a câmera para o QR Code para pagar.</p>
+                <div id="status" class="font-semibold text-lg text-yellow-500">Aguardando pagamento...</div>
+                <button onclick="cancelPayment()" class="mt-6 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">Cancelar</button>
+            </div>
+        </div>
+
+        <div id="success-screen" class="hidden text-center">
+             <h1 class="text-3xl font-bold text-green-500 mb-4">Pagamento Aprovado!</h1>
+             <p class="text-gray-600">A sua bebida foi liberada. Retire-a da geladeira.</p>
+        </div>
+
+    </div>
+
+    <script>
+        const productList = document.getElementById('product-list');
+        const paymentScreen = document.getElementById('payment-screen');
+        const successScreen = document.getElementById('success-screen');
+        const loadingDiv = document.getElementById('loading');
+        const paymentContent = document.getElementById('payment-content');
+        const paymentProduct = document.getElementById('payment-product');
+        const qrcodeDiv = document.getElementById('qrcode');
+
+        async function selectProduct(productName, priceInCents) {
+            productList.classList.add('hidden');
+            paymentScreen.classList.remove('hidden');
+            loadingDiv.classList.remove('hidden');
+            paymentContent.classList.add('hidden');
+
+            try {
+                // Chama o nosso "assistente" na nuvem para criar o link de pagamento
+                const response = await fetch('/.netlify/functions/create-payment-link', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        productName, 
+                        priceInCents,
+                        successUrl: window.location.href + '?status=success', // Volta para cá se pagar
+                        cancelUrl: window.location.href, // Volta para cá se cancelar
+                    }),
+                });
+
+                if (!response.ok) throw new Error('Falha ao criar o link de pagamento.');
+
+                const data = await response.json();
+                generateQRCode(data.checkoutUrl);
+
+                paymentProduct.textContent = `${productName} - R$ ${(priceInCents / 100).toFixed(2)}`;
+                loadingDiv.classList.add('hidden');
+                paymentContent.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Erro:", error);
+                alert("Ocorreu um erro. Por favor, tente novamente.");
+                cancelPayment();
+            }
+        }
+
+        function generateQRCode(url) {
+            qrcodeDiv.innerHTML = '';
+            const qr = qrcode(0, 'L');
+            qr.addData(url);
+            qr.make();
+            qrcodeDiv.innerHTML = qr.createImgTag(5, 5);
+        }
+
+        function cancelPayment() {
+            productList.classList.remove('hidden');
+            paymentScreen.classList.add('hidden');
+            successScreen.classList.add('hidden');
+            qrcodeDiv.innerHTML = '';
+        }
+
+        // Verifica se a página foi carregada com status de sucesso
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('status') === 'success') {
+                productList.classList.add('hidden');
+                paymentScreen.classList.add('hidden');
+                successScreen.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
