@@ -1,4 +1,4 @@
-// v1.2 - Corrigindo a estrutura de dados para a API da Stripe
+// v1.3 - Adicionando logs para depurar dados de entrada
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 exports.handler = async function(event) {
@@ -7,14 +7,29 @@ exports.handler = async function(event) {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
+  // --- INÍCIO DA DEPURAÇÃO ---
+  console.log("Corpo do pedido recebido:", event.body);
+  // --- FIM DA DEPURAÇÃO ---
+  
   const { name, price } = JSON.parse(event.body);
+  
+  // --- INÍCIO DA DEPURAÇÃO ---
+  console.log(`Dados processados - Nome: ${name}, Preço: ${price}`);
+  // --- FIM DA DEPURAÇÃO ---
+
+  // Validação simples para garantir que os dados chegaram
+  if (!name || !price) {
+    console.error("Erro: Nome ou preço em falta no pedido.");
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Nome ou preço em falta." }),
+    };
+  }
 
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
       line_items: [{
-        // A correção está aqui. 'price_data' agora contém 'currency', 
-        // 'unit_amount' e o objeto 'product_data' diretamente.
         price_data: {
           currency: 'brl',
           unit_amount: price,
