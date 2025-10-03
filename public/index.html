@@ -5,91 +5,173 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Geladeira Inteligente</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
-    <style> body { font-family: 'Inter', sans-serif; } </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div id="main-container" class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+    <div id="main-container" class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full relative">
         
+        <!-- Tela de Produtos -->
         <div id="product-list">
             <h1 class="text-3xl font-bold text-gray-800 mb-2">Bebidas Geladas</h1>
             <p class="text-gray-500 mb-6">Escolha sua bebida para gerar o QR Code de pagamento.</p>
             <div class="space-y-4">
+                <!-- Produtos -->
                 <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition">
-                    <div><h2 class="text-lg font-semibold">Coca-Cola Lata</h2><p class="text-gray-600 font-bold">R$ 5,00</p></div>
-                    <button onclick="selectProduct('Coca-Cola Lata', 500)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600">Selecionar</button>
+                    <div>
+                        <h2 class="text-lg font-semibold">Coca-Cola Lata</h2>
+                        <p class="text-gray-600 font-bold">R$ 5,00</p>
+                    </div>
+                    <button onclick="selectProduct('Coca-Cola Lata', 500)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600 transition">Selecionar</button>
                 </div>
                 <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition">
-                    <div><h2 class="text-lg font-semibold">Água Mineral 500ml</h2><p class="text-gray-600 font-bold">R$ 3,00</p></div>
-                    <button onclick="selectProduct('Agua Mineral 500ml', 300)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600">Selecionar</button>
+                    <div>
+                        <h2 class="text-lg font-semibold">Água Mineral 500ml</h2>
+                        <p class="text-gray-600 font-bold">R$ 3,00</p>
+                    </div>
+                    <button onclick="selectProduct('Água Mineral 500ml', 300)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600 transition">Selecionar</button>
                 </div>
                 <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition">
-                    <div><h2 class="text-lg font-semibold">Cerveja Lata</h2><p class="text-gray-600 font-bold">R$ 6,00</p></div>
-                    <button onclick="selectProduct('Cerveja Lata', 600)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600">Selecionar</button>
+                    <div>
+                        <h2 class="text-lg font-semibold">Cerveja Lata</h2>
+                        <p class="text-gray-600 font-bold">R$ 6,00</p>
+                    </div>
+                    <button onclick="selectProduct('Cerveja Lata', 600)" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-600 transition">Selecionar</button>
                 </div>
             </div>
+            <div id="mqtt-status" class="mt-4 text-xs text-center text-gray-400">A ligar ao sistema...</div>
         </div>
 
+        <!-- Tela de Pagamento -->
         <div id="payment-screen" class="hidden text-center">
-            <div id="loading" class="hidden"><p class="animate-pulse">A gerar link de pagamento...</p></div>
-            <div id="payment-content">
-                <h1 class="text-2xl font-bold text-gray-800 mb-2">Pague para Liberar</h1>
-                <p id="payment-product" class="text-gray-600 mb-4"></p>
-                <div id="qrcode" class="flex justify-center my-4"></div>
-                <p class="text-sm text-gray-500 mb-4">Aponte a câmera para o QR Code para pagar.</p>
-                <div id="status" class="font-semibold text-lg text-yellow-500">Aguardando pagamento...</div>
-                <button onclick="cancelPayment()" class="mt-6 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">Cancelar</button>
+            <div id="loading-spinner" class="hidden absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
+                <div class="spinner"></div>
             </div>
-        </div>
-
-        <div id="success-screen" class="hidden text-center">
-             <h1 class="text-3xl font-bold text-green-500 mb-4">Pagamento Aprovado!</h1>
-             <p class="text-gray-600">A sua bebida foi liberada. Retire-a da geladeira.</p>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">Pague para Liberar</h1>
+            <p id="payment-product" class="text-gray-600 mb-4"></p>
+            <div id="qrcode" class="flex justify-center my-4"></div>
+            <p class="text-sm text-gray-500 mb-4">Aponte a câmera para o QR Code para pagar.</p>
+            <div id="status" class="font-semibold text-lg text-yellow-500">Aguardando pagamento...</div>
+            <button onclick="cancelPayment()" class="mt-6 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">Cancelar</button>
         </div>
 
     </div>
 
     <script>
+        // ================== CONFIGURAÇÕES ==================
+        const UNIQUE_ID = "geladeira-secreta-123"; // Deve ser o mesmo do ESP32
+        const MQTT_BROKER = "broker.hivemq.com";
+        const MQTT_PORT = 8884; // Porta segura (WSS)
+        // ===============================================
+
         const productList = document.getElementById('product-list');
         const paymentScreen = document.getElementById('payment-screen');
-        const successScreen = document.getElementById('success-screen');
-        const loadingDiv = document.getElementById('loading');
-        const paymentContent = document.getElementById('payment-content');
         const paymentProduct = document.getElementById('payment-product');
+        const statusDiv = document.getElementById('status');
         const qrcodeDiv = document.getElementById('qrcode');
+        const mqttStatusDiv = document.getElementById('mqtt-status');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        
+        let client;
+        let paymentUrl = null;
 
+        // --- LÓGICA MQTT ---
+        function connectMQTT() {
+            const clientId = "geladeira-webapp-" + Math.random().toString(16).substr(2, 8);
+            client = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, clientId);
+            client.onConnectionLost = (responseObject) => {
+                if (responseObject.errorCode !== 0) {
+                    console.log("MQTT Connection Lost:" + responseObject.errorMessage);
+                    mqttStatusDiv.textContent = "Sistema Offline (Erro)";
+                    mqttStatusDiv.className = "mt-4 text-xs text-center text-red-500";
+                }
+            };
+            client.connect({ 
+                onSuccess: () => {
+                    console.log("MQTT Conectado!");
+                    mqttStatusDiv.textContent = "Sistema Online";
+                    mqttStatusDiv.className = "mt-4 text-xs text-center text-green-500";
+                },
+                useSSL: true,
+                onFailure: (err) => {
+                    console.error("Falha ao ligar MQTT: ", err);
+                    mqttStatusDiv.textContent = "Sistema Offline (Falha)";
+                    mqttStatusDiv.className = "mt-4 text-xs text-center text-red-500";
+                }
+            });
+        }
+
+        function sendUnlockCommand() {
+            if (!client || !client.isConnected()) {
+                alert("Erro: Não foi possível ligar ao sistema da geladeira. Tente novamente.");
+                return;
+            }
+            const commandTopic = `geladeira/command/${UNIQUE_ID}`;
+            const message = new Paho.MQTT.Message(JSON.stringify({ action: "abrir" }));
+            message.destinationName = commandTopic;
+            client.send(message);
+            console.log("Comando de abrir enviado!");
+        }
+
+        // --- LÓGICA DE PAGAMENTO ---
         async function selectProduct(productName, priceInCents) {
             productList.classList.add('hidden');
             paymentScreen.classList.remove('hidden');
-            loadingDiv.classList.remove('hidden');
-            paymentContent.classList.add('hidden');
+            loadingSpinner.classList.remove('hidden');
+            paymentProduct.textContent = `${productName} - R$ ${(priceInCents / 100).toFixed(2)}`;
+            statusDiv.textContent = "A gerar link de pagamento...";
 
             try {
-                // Chama o nosso "assistente" na nuvem para criar o link de pagamento
                 const response = await fetch('/.netlify/functions/create-payment-link', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        productName, 
-                        priceInCents,
-                        successUrl: window.location.href + '?status=success', // Volta para cá se pagar
-                        cancelUrl: window.location.href, // Volta para cá se cancelar
-                    }),
+                    body: JSON.stringify({ productName, priceInCents })
                 });
 
-                if (!response.ok) throw new Error('Falha ao criar o link de pagamento.');
+                // CORREÇÃO: Verifica se a resposta do nosso assistente foi bem-sucedida
+                if (!response.ok) {
+                    // Se não foi, lança um erro para ser apanhado pelo bloco catch
+                    const errorBody = await response.text();
+                    throw new Error(`O servidor respondeu com um erro: ${response.status}. Detalhes: ${errorBody}`);
+                }
 
                 const data = await response.json();
-                generateQRCode(data.checkoutUrl);
 
-                paymentProduct.textContent = `${productName} - R$ ${(priceInCents / 100).toFixed(2)}`;
-                loadingDiv.classList.add('hidden');
-                paymentContent.classList.remove('hidden');
+                // CORREÇÃO: Verifica se a resposta contém o URL
+                if (data && data.url) {
+                    paymentUrl = data.url;
+                    generateQRCode(paymentUrl);
+                    statusDiv.textContent = "Aguardando pagamento...";
+                    statusDiv.className = "font-semibold text-lg text-yellow-500";
+                } else {
+                    throw new Error("A resposta do servidor não continha um URL de pagamento válido.");
+                }
 
             } catch (error) {
-                console.error("Erro:", error);
-                alert("Ocorreu um erro. Por favor, tente novamente.");
-                cancelPayment();
+                console.error("Erro no processo de seleção do produto:", error);
+                statusDiv.textContent = "Erro ao gerar QR Code.";
+                statusDiv.className = "font-semibold text-lg text-red-500";
+                alert("Ocorreu um erro ao tentar gerar o pagamento. Por favor, tente novamente.");
+            } finally {
+                loadingSpinner.classList.add('hidden');
             }
         }
 
@@ -100,23 +182,37 @@
             qr.make();
             qrcodeDiv.innerHTML = qr.createImgTag(5, 5);
         }
-
+        
         function cancelPayment() {
+            paymentUrl = null;
             productList.classList.remove('hidden');
             paymentScreen.classList.add('hidden');
-            successScreen.classList.add('hidden');
             qrcodeDiv.innerHTML = '';
         }
 
-        // Verifica se a página foi carregada com status de sucesso
+        // --- INICIALIZAÇÃO ---
         document.addEventListener('DOMContentLoaded', () => {
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('status') === 'success') {
+            connectMQTT();
+            
+            // Verifica se a página foi carregada após um pagamento bem-sucedido
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('payment') === 'success') {
                 productList.classList.add('hidden');
-                paymentScreen.classList.add('hidden');
-                successScreen.classList.remove('hidden');
+                paymentScreen.classList.remove('hidden');
+                statusDiv.textContent = "Pagamento Aprovado! A abrir...";
+                statusDiv.className = "font-semibold text-lg text-green-500";
+                qrcodeDiv.innerHTML = '<p class="text-green-500 font-bold text-lg">Obrigado!</p>';
+                sendUnlockCommand();
+
+                // Volta para a tela de produtos após 8 segundos
+                setTimeout(() => {
+                    // Limpa os parâmetros da URL para evitar re-execução
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    cancelPayment();
+                }, 8000);
             }
         });
     </script>
 </body>
 </html>
+
