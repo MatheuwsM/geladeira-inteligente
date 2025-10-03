@@ -1,37 +1,45 @@
-// Importa a biblioteca da Stripe
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-exports.handler = async (event) => {
-  try {
-    // Extrai os dados do produto enviados pelo site
-    const { productName, priceInCents, successUrl, cancelUrl } = JSON.parse(event.body);
+exports.handler = async function(event) {
+  // Apenas processa pedidos POST
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method Not Allowed' };
+  }
 
-    // Cria uma Sessão de Checkout na Stripe
+  const { name, price } = JSON.parse(event.body);
+
+  try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl', // Moeda: Real Brasileiro
-            product_data: {
-              name: productName,
-            },
-            unit_amount: priceInCents,
+      line_items: [{
+        price_data: {
+          currency: 'brl',
+          product_data: {
+            name: name,
           },
-          quantity: 1,
+          unit_amount: price,
         },
-      ],
+        quantity: 1,
+      }],
       mode: 'payment',
-      success_url: successUrl, // URL para onde o cliente volta se pagar
-      cancel_url: cancelUrl,   // URL para onde o cliente volta se cancelar
+      success_url: `${event.headers.referer}?payment=success`,
+      cancel_url: `${event.headers.referer}?payment=cancelled`,
     });
 
-    // Devolve o URL de pagamento para o site
     return {
       statusCode: 200,
-      body: JSON.stringify({ checkoutUrl: session.url }),
+      body: JSON.stringify({
+        id: session.id,
+        url: session.url
+      }),
     };
-  } catch (error) {
-    return { statusCode: 500, body: error.toString() };
+
+  } catch (err) {
+    console.error("Erro ao criar a sessão de checkout da Stripe:", err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err.message }),
+    };
   }
 };
+

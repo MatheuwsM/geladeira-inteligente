@@ -80,26 +80,4 @@ function sendUnlockCommand() {
     });
   });
 }
-```
-
-### **O que fazer agora?**
-
-1.  **Guarde o Ficheiro:** Salve as alterações no ficheiro `netlify/functions/stripe-webhook.js`.
-2.  **Envie para o GitHub:** Abra um terminal no VS Code e execute os seguintes comandos para enviar a correção:
-    ```bash
-    git add .
-    git commit -m "Corrige a lógica de envio do MQTT na função do webhook"
-    git push
-    ```
-3.  **Aguarde o Deploy:** O Netlify irá detetar a atualização e fazer um novo "deploy". Espere até que o status volte a ser "published".
-4.  **Faça um Novo Teste:** Realize um novo pagamento de teste completo.
-5.  **Verifique os Novos Registos:** Volte à secção "Functions" no Netlify e olhe para os registos do `stripe-webhook`. Com o novo código, você deverá ver uma sequência muito mais detalhada, como:
-
-    ```
-    ✅ Webhook da Stripe recebido com sucesso!
-    A tentar ligar-se ao broker MQTT...
-    Ligado ao broker MQTT com sucesso!
-    Mensagem publicada no tópico: geladeira/command/geladeira-secreta-123
-    ✅ Comando 'abrir' enviado para o MQTT com sucesso.
-    
 
