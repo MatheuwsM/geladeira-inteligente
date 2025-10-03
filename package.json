@@ -1,0 +1,15 @@
+{
+  "name": "geladeira-inteligente-functions",
+  "version": "1.0.0",
+  "description": "Funções do Netlify para o projeto da geladeira",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mqtt": "^5.0.0",
+    "stripe": "^14.0.0"
+  }
+}
