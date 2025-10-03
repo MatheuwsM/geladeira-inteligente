@@ -1,4 +1,4 @@
-// v1.3 - Adicionando logs para depurar dados de entrada
+// v1.4 - Corrigindo o nome das variáveis recebidas do frontend
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 exports.handler = async function(event) {
@@ -7,15 +7,13 @@ exports.handler = async function(event) {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // --- INÍCIO DA DEPURAÇÃO ---
   console.log("Corpo do pedido recebido:", event.body);
-  // --- FIM DA DEPURAÇÃO ---
   
-  const { name, price } = JSON.parse(event.body);
+  // CORREÇÃO AQUI: Estamos a extrair 'productName' e 'priceInCents'
+  // e a renomeá-los para 'name' e 'price' para o resto da função.
+  const { productName: name, priceInCents: price } = JSON.parse(event.body);
   
-  // --- INÍCIO DA DEPURAÇÃO ---
   console.log(`Dados processados - Nome: ${name}, Preço: ${price}`);
-  // --- FIM DA DEPURAÇÃO ---
 
   // Validação simples para garantir que os dados chegaram
   if (!name || !price) {
