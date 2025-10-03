@@ -75,8 +75,6 @@ void setup() {
   sprintf(command_topic, "geladeira/command/%s", UNIQUE_ID);
 
   WiFiManager wm;
-  // Apaga as credenciais salvas para forçar nova configuração de Wi-Fi
-  // wm.resetSettings(); 
   if (!wm.autoConnect("Configurar Geladeira", "senha123")) {
     ESP.restart();
   }
@@ -87,11 +85,27 @@ void setup() {
   client.setCallback(callback);
 }
 
+// --- LOOP PRINCIPAL ATUALIZADO ---
+// Este loop é mais robusto e verifica a ligação Wi-Fi antes de tudo.
 void loop() {
+  // 1. Verifica se a ligação Wi-Fi está ativa.
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Conexão Wi-Fi perdida! A tentar reconectar...");
+    // A biblioteca do ESP32 geralmente tenta reconectar-se sozinha em segundo plano.
+    // Damos uma pausa para evitar sobrecarregar o processador.
+    delay(1000);
+    return; // Pula o resto do loop até o Wi-Fi voltar.
+  }
+
+  // 2. Se o Wi-Fi está OK, mas o MQTT não está, reconecta o MQTT.
   if (!client.connected()) {
     reconnect();
   }
-  client.loop(); // Essencial para manter a comunicação MQTT
+  
+  // 3. Se tudo estiver OK, processa as mensagens MQTT e mantém a ligação viva.
+  client.loop();
+  
+  // Um pequeno delay para o processador respirar.
   delay(10);
 }
 
