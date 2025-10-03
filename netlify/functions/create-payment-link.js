@@ -1,3 +1,4 @@
+// v1.1 - Forçando a atualização para corrigir o deploy
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 exports.handler = async function(event) {
