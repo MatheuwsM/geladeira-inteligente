@@ -94,7 +94,7 @@
         let paymentUrl = null;
 
         // --- LÓGICA MQTT ---
-        function connectMQTT() {
+        function connectMQTT(onSuccessCallback) {
             const clientId = "geladeira-webapp-" + Math.random().toString(16).substr(2, 8);
             client = new Paho.MQTT.Client(MQTT_BROKER, MQTT_PORT, clientId);
             client.onConnectionLost = (responseObject) => {
@@ -109,6 +109,10 @@
                     console.log("MQTT Conectado!");
                     mqttStatusDiv.textContent = "Sistema Online";
                     mqttStatusDiv.className = "mt-4 text-xs text-center text-green-500";
+                    // CORREÇÃO: Executa a função de callback APENAS quando a ligação for bem-sucedida
+                    if (onSuccessCallback) {
+                        onSuccessCallback();
+                    }
                 },
                 useSSL: true,
                 onFailure: (err) => {
@@ -121,6 +125,7 @@
 
         function sendUnlockCommand() {
             if (!client || !client.isConnected()) {
+                // Este alerta agora só deve aparecer em caso de falha real
                 alert("Erro: Não foi possível ligar ao sistema da geladeira. Tente novamente.");
                 return;
             }
@@ -146,16 +151,13 @@
                     body: JSON.stringify({ productName, priceInCents })
                 });
 
-                // CORREÇÃO: Verifica se a resposta do nosso assistente foi bem-sucedida
                 if (!response.ok) {
-                    // Se não foi, lança um erro para ser apanhado pelo bloco catch
                     const errorBody = await response.text();
                     throw new Error(`O servidor respondeu com um erro: ${response.status}. Detalhes: ${errorBody}`);
                 }
 
                 const data = await response.json();
 
-                // CORREÇÃO: Verifica se a resposta contém o URL
                 if (data && data.url) {
                     paymentUrl = data.url;
                     generateQRCode(paymentUrl);
@@ -192,25 +194,30 @@
 
         // --- INICIALIZAÇÃO ---
         document.addEventListener('DOMContentLoaded', () => {
-            connectMQTT();
-            
-            // Verifica se a página foi carregada após um pagamento bem-sucedido
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('payment') === 'success') {
+            const isSuccessRedirect = urlParams.get('payment') === 'success';
+
+            // Define a ação a ser executada após a ligação MQTT
+            const postConnectAction = isSuccessRedirect ? () => {
+                // Mostra a tela de sucesso
                 productList.classList.add('hidden');
                 paymentScreen.classList.remove('hidden');
                 statusDiv.textContent = "Pagamento Aprovado! A abrir...";
                 statusDiv.className = "font-semibold text-lg text-green-500";
                 qrcodeDiv.innerHTML = '<p class="text-green-500 font-bold text-lg">Obrigado!</p>';
+                
+                // Envia o comando para abrir
                 sendUnlockCommand();
 
                 // Volta para a tela de produtos após 8 segundos
                 setTimeout(() => {
-                    // Limpa os parâmetros da URL para evitar re-execução
                     window.history.replaceState({}, document.title, window.location.pathname);
                     cancelPayment();
                 }, 8000);
-            }
+            } : null;
+            
+            // Inicia a ligação ao MQTT e passa a ação de sucesso como um callback
+            connectMQTT(postConnectAction);
         });
     </script>
 </body>
