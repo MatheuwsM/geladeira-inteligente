@@ -1,4 +1,4 @@
-// v1.1 - Forçando a atualização para corrigir o deploy
+// v1.2 - Corrigindo a estrutura de dados para a API da Stripe
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 exports.handler = async function(event) {
@@ -13,12 +13,14 @@ exports.handler = async function(event) {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'boleto'],
       line_items: [{
+        // A correção está aqui. 'price_data' agora contém 'currency', 
+        // 'unit_amount' e o objeto 'product_data' diretamente.
         price_data: {
           currency: 'brl',
+          unit_amount: price,
           product_data: {
             name: name,
           },
-          unit_amount: price,
         },
         quantity: 1,
       }],
