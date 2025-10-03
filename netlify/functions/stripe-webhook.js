@@ -1,46 +1,105 @@
-// Importa a biblioteca MQTT para enviar o comando
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const mqtt = require('mqtt');
 
-exports.handler = async ({ body, headers }) => {
+// ================== CONFIGURAÇÕES DE SEGURANÇA ==================
+// ID único para os nossos canais MQTT. Deve ser o mesmo no ESP32.
+const UNIQUE_ID = "geladeira-secreta-123";
+// ==============================================================
+
+exports.handler = async function(event) {
+  // Apenas processa pedidos POST
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method Not Allowed' };
+  }
+
   try {
-    // A API da Stripe é um exemplo, não vamos implementá-la aqui.
-    // Em um cenário real, você validaria a assinatura do webhook da Stripe.
-    
-    const stripeEvent = JSON.parse(body);
+    const session = JSON.parse(event.body);
 
-    // Verifica se o evento é 'checkout.session.completed'
-    if (stripeEvent.type === 'checkout.session.completed') {
-      console.log('Pagamento recebido com sucesso!');
+    // Verifica se o evento é o que esperamos
+    if (session.type === 'checkout.session.completed') {
+      console.log("✅ Webhook da Stripe recebido com sucesso!");
 
-      // ================== CONFIGURAÇÕES MQTT ==================
-      const MQTT_HOST = 'broker.hivemq.com';
-      const MQTT_PORT = '1883';
-      const UNIQUE_ID = "geladeira-secreta-123";
-      // =======================================================
-
-      const commandTopic = `geladeira/command/${UNIQUE_ID}`;
-      const client = mqtt.connect(`mqtt://${MQTT_HOST}:${MQTT_PORT}`);
-
-      client.on('connect', () => {
-        const message = JSON.stringify({ action: "abrir" });
-        
-        // Publica a mensagem para o ESP32
-        client.publish(commandTopic, message, () => {
-          console.log('Comando de abrir enviado para o ESP32.');
-          client.end(); // Fecha a conexão
-        });
-      });
+      // Tenta enviar o comando para o ESP32 via MQTT
+      try {
+        await sendUnlockCommand();
+        console.log("✅ Comando 'abrir' enviado para o MQTT com sucesso.");
+      } catch (mqttError) {
+        console.error("❌ ERRO ao enviar comando MQTT:", mqttError);
+        // Mesmo com erro de MQTT, respondemos à Stripe que recebemos o webhook
+        // para evitar que ela continue a tentar enviar.
+      }
+    } else {
+      console.log(`Evento não tratado recebido: ${session.type}`);
     }
 
     return {
       statusCode: 200,
       body: JSON.stringify({ received: true }),
     };
+
   } catch (err) {
-    console.log(`Stripe webhook failed with ${err}`);
-    return {
-      statusCode: 400,
-      body: `Webhook Error: ${err.message}`,
-    };
+    console.error("❌ Erro ao processar o corpo do webhook:", err.message);
+    return { statusCode: 400, body: `Webhook Error: ${err.message}` };
   }
 };
+
+
+// Função para enviar o comando de abrir, agora com gestão de ligação
+function sendUnlockCommand() {
+  return new Promise((resolve, reject) => {
+    const commandTopic = `geladeira/command/${UNIQUE_ID}`;
+    const mqttBrokerUrl = 'mqtt://broker.hivemq.com:1883';
+    
+    console.log("A tentar ligar-se ao broker MQTT...");
+    const client = mqtt.connect(mqttBrokerUrl);
+
+    // Evento que é chamado quando a ligação é bem-sucedida
+    client.on('connect', () => {
+      console.log("Ligado ao broker MQTT com sucesso!");
+      
+      const message = JSON.stringify({ action: "abrir" });
+      
+      client.publish(commandTopic, message, (err) => {
+        if (err) {
+          console.error("Erro ao publicar mensagem:", err);
+          client.end(); // Fecha a ligação
+          reject(err); // Rejeita a promessa com o erro
+        } else {
+          console.log(`Mensagem publicada no tópico: ${commandTopic}`);
+          client.end(); // Fecha a ligação
+          resolve(); // Resolve a promessa com sucesso
+        }
+      });
+    });
+
+    // Evento que é chamado se ocorrer um erro na ligação
+    client.on('error', (err) => {
+      console.error("Erro de ligação MQTT:", err);
+      client.end();
+      reject(err);
+    });
+  });
+}
+```
+
+### **O que fazer agora?**
+
+1.  **Guarde o Ficheiro:** Salve as alterações no ficheiro `netlify/functions/stripe-webhook.js`.
+2.  **Envie para o GitHub:** Abra um terminal no VS Code e execute os seguintes comandos para enviar a correção:
+    ```bash
+    git add .
+    git commit -m "Corrige a lógica de envio do MQTT na função do webhook"
+    git push
+    ```
+3.  **Aguarde o Deploy:** O Netlify irá detetar a atualização e fazer um novo "deploy". Espere até que o status volte a ser "published".
+4.  **Faça um Novo Teste:** Realize um novo pagamento de teste completo.
+5.  **Verifique os Novos Registos:** Volte à secção "Functions" no Netlify e olhe para os registos do `stripe-webhook`. Com o novo código, você deverá ver uma sequência muito mais detalhada, como:
+
+    ```
+    ✅ Webhook da Stripe recebido com sucesso!
+    A tentar ligar-se ao broker MQTT...
+    Ligado ao broker MQTT com sucesso!
+    Mensagem publicada no tópico: geladeira/command/geladeira-secreta-123
+    ✅ Comando 'abrir' enviado para o MQTT com sucesso.
+    
+
