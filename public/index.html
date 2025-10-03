@@ -109,7 +109,6 @@
                     console.log("MQTT Conectado!");
                     mqttStatusDiv.textContent = "Sistema Online";
                     mqttStatusDiv.className = "mt-4 text-xs text-center text-green-500";
-                    // CORREÇÃO: Executa a função de callback APENAS quando a ligação for bem-sucedida
                     if (onSuccessCallback) {
                         onSuccessCallback();
                     }
@@ -125,7 +124,6 @@
 
         function sendUnlockCommand() {
             if (!client || !client.isConnected()) {
-                // Este alerta agora só deve aparecer em caso de falha real
                 alert("Erro: Não foi possível ligar ao sistema da geladeira. Tente novamente.");
                 return;
             }
@@ -202,12 +200,12 @@
                 // Mostra a tela de sucesso
                 productList.classList.add('hidden');
                 paymentScreen.classList.remove('hidden');
-                statusDiv.textContent = "Pagamento Aprovado! A abrir...";
+                statusDiv.textContent = "Pagamento Aprovado! A geladeira foi destravada.";
                 statusDiv.className = "font-semibold text-lg text-green-500";
-                qrcodeDiv.innerHTML = '<p class="text-green-500 font-bold text-lg">Obrigado!</p>';
+                qrcodeDiv.innerHTML = '<p class="text-green-500 font-bold text-lg">Obrigado! Retire sua bebida.</p>';
                 
-                // Envia o comando para abrir
-                sendUnlockCommand();
+                // CORREÇÃO: A linha abaixo foi removida para não enviar um segundo comando.
+                // sendUnlockCommand();
 
                 // Volta para a tela de produtos após 8 segundos
                 setTimeout(() => {
